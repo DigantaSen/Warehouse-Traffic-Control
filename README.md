@@ -2,6 +2,9 @@
 
 This is a browser demo of Project A. 50 to 200 robots share a grid safely by using per-cell leases, fencing epochs and Chandy–Misra–Haas deadlock detection.
 
+**Live demo: [digantasen.github.io/Warehouse-Traffic-Control](https://digantasen.github.io/Warehouse-Traffic-Control/)**
+
+To run it locally:
 
 ```bash
 cd sim
@@ -67,7 +70,7 @@ A hard gate (robots waiting at a region's border for room) was deliberately avoi
 
 ### Network partitions
 
-A dead zone cuts every robot inside it off from the network, in both directions. Managers and the world keep running. To a manager, a robot behind a partition is indistinguishable from a crashed one, and the protocol handles it the same way: wait out the lease, re-grant empty cells, Block occupied ones. The cut-off robot is safe because it computes its lease expiry from when it *sent* its last successful renewal, which is always earlier than the manager's copy. With the safety margin, it stops trusting the lease before the manager hands the cell to anyone else. While a lease is nearly out, a robot retries renewals at most every 4 ticks, so a cut-off robot doesn't flood the network. Stress test: 240 random partitions across 12 runs of 160 robots (about 172,000 moves), with and without loss and drift: **0 collisions**.
+A dead zone cuts every robot inside it off from the network, in both directions. Managers and the world keep running. To a manager, a robot behind a partition is indistinguishable from a crashed one, and the protocol handles it the same way: wait out the lease, re-grant empty cells, Block occupied ones. The cut-off robot is safe because it computes its lease expiry from when it *sent* its last successful renewal, which is always earlier than the manager's copy. With the safety margin, it stops trusting the lease before the manager hands the cell to anyone else. While a lease is nearly out, a robot retries renewals at most every 4 ticks, so a cut-off robot doesn't flood the network. Stress test: 240 random partitions across 12 runs of 160 robots (about 271,000 moves), with and without 10% loss and ±20% drift: **0 collisions**.
 
 ### Traffic rules added to keep 200 robots moving
 
@@ -86,11 +89,11 @@ A crashed manager loses its whole reservation table. On restart it increments an
 
 * A robot never resyncs mid-move, and never releases a cell it physically occupies.
 * Managers never grant a cell their floor sensor reports occupied by another robot.
-* Stress test: 144 runs (about 416,000 moves) with up to 40% message loss, ±20% clock drift, short leases, every safety margin, and injected failures. The result was **0 collisions**.
+* Stress test: 144 runs of 120 robots (about 1,161,000 moves) covering every combination of 0–40% message loss, 0–±20% clock drift, 2 s and 3 s leases and safety margins from 0 to 1.2 s, with injected robot crashes, pauses and manager crashes. The result was **0 collisions**.
 
 ### Findings so far (seed 42, 30 minutes of simulated time per run)
 
-"Throughput" below is tasks per minute in the final minute of the run, as the benchmark charts show it; "whole run" is total tasks divided by 30.
+"Throughput" below is tasks per minute in the final minute of the run, as the benchmark charts show it; "whole run" is total tasks divided by 30. All figures in this README were re-run on 14 October 2026: the Benchmark (`B`) and comparison (`C`) sweeps, 104 runs with 0 failures and 0 protocol collisions.
 
 * Protected collisions stay at **0** in every protocol run. Baseline has 18 collisions per 1,000 moves at 50 robots, rising to 75 at 200.
 * Detection holds about 110 tasks/min from 100 to 150 robots (whole run: 101–105). At 200 robots the floor saturates: the whole-run average falls to 73 tasks/min, though the final minute is back at 104, still with almost no deadlocks (0.30 per 1,000 moves, resolved in about 0.5 s).
@@ -141,11 +144,10 @@ Click the **Multi-storey** tab in the top bar (leases + detection on 3 floors), 
 
 **Verified.**
 
-* Stress test (with stations on the ground floor only): 24 runs on 3 floors with message loss up to 15%, clock drift up to 20% and injected crashes and pauses (326,000 moves, 3,310 rides). Results: 0 collisions, never two robots in a shaft, and the car always at the floor of any robot standing in the shaft.
-* With stations on the ground and first floor and the 70/30 drop-off split: 12 more runs (220,000 moves, 2,309 rides), again 0 collisions and no shaft or car violations.
-* Forced failures all recover:
-  * A robot crashing mid-ride takes the lift out of service after 5.6 s; it is back after about 10 s.
-  * A lift manager crashing during a ride reconciles in 5.5 s.
-  * A robot that freezes inside the car past its lease is fenced on its stale epoch, resyncs and gets the car back.
+* Stress test: 24 runs of 90 robots on 3 floors with 4 lifts, covering every combination of 0–15% message loss and 0–±20% clock drift, with injected crashes and pauses (914,000 moves, 9,028 rides). Checked every tick: 0 collisions, never two robots in a shaft, and the car always at the floor of any robot standing in the shaft.
+* Forced failures all recover (lift scenario, 4 seeds):
+  * A robot crashing mid-ride takes the lift out of service after about 4.3 s (4.2–4.6 s); the lift is back in service about 9 s after the crash.
+  * A lift manager crashing during a ride is granting again after 4.3 s when every robot answers, or 5.5 s when it has to wait out the reconciliation timeout.
+  * A robot that freezes inside the car past its lease is fenced on its stale epoch, resyncs and rides on.
 
 **Findings (90 robots, 30 minutes, mean of 2 seeds).** Lifts are the bottleneck. With 3 floors, throughput goes from 8 tasks/min with 1 lift to 30 with 2, 54 with 4, 51 with 6 and 73 with 8. Six lifts are no better than four over a long run. With one lift, seed 2 almost stalls: 67 rides in 30 minutes, against 513 for seed 1. The mean wait for a car falls from 8.8 s to 4.2 s. One floor manages 96 tasks/min, two floors with 4 lifts 79. No run has a collision. A ride holds a car for about 3.5 s: drive in, ride, wait for the exit cell, drive out. Empty trips to the next waiter add more. So a lift moves about one robot every 4–5 s. The **Benchmark** (`B`) has these sweeps in section E.
